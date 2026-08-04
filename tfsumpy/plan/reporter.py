@@ -6,22 +6,23 @@ import json as _json
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from datetime import datetime
+from deepdiff import DeepDiff
+from jsondiff import diff
+
 
 class PlanReporter(BaseReporter, ReporterInterface):
     """Handles formatting and display of Terraform plan results."""
-    
+
     def __init__(self):
         """Initialize the plan reporter."""
         super().__init__()
         self.logger = logging.getLogger(__name__)
         # Initialize Jinja2 environment
         template_dir = Path(__file__).parent.parent / 'templates'
-        self.env = Environment(
-            autoescape=True,
-            loader=FileSystemLoader(str(template_dir)),
-            trim_blocks=True,
-            lstrip_blocks=True
-        )
+        self.env = Environment(autoescape=True,
+                               loader=FileSystemLoader(str(template_dir)),
+                               trim_blocks=True,
+                               lstrip_blocks=True)
 
     @property
     def category(self) -> str:
@@ -49,7 +50,10 @@ class PlanReporter(BaseReporter, ReporterInterface):
             self.logger.error(f"Error processing report: {str(e)}")
             raise
 
-    def _process_resources(self, resources: List[Dict], show_changes: bool = False, show_details: bool = False) -> List[Dict]:
+    def _process_resources(self,
+                           resources: List[Dict],
+                           show_changes: bool = False,
+                           show_details: bool = False) -> List[Dict]:
         """Process resources and their changes.
         
         Args:
@@ -70,7 +74,8 @@ class PlanReporter(BaseReporter, ReporterInterface):
                 'module': resource.get('module', 'root'),
                 # Add replacement and triggers for reporting
                 'replacement': resource.get('replacement', False),
-                'replacement_triggers': resource.get('replacement_triggers', []),
+                'replacement_triggers': resource.get('replacement_triggers',
+                                                     []),
             }
 
             # Process changes if requested
@@ -78,40 +83,43 @@ class PlanReporter(BaseReporter, ReporterInterface):
                 before = resource.get('before', {}) or {}
                 after = resource.get('after', {}) or {}
                 changes = []
-                
+
                 # Get all changed attributes
                 all_attrs = set(before.keys()) | set(after.keys())
                 skip_attrs = {'id', 'tags_all'}  # Skip internal attributes
-                
+
                 for attr in sorted(all_attrs - skip_attrs):
                     before_val = before.get(attr)
                     after_val = after.get(attr)
-                    
+
                     if before_val != after_val:
                         changes.append({
                             'attribute': attr,
                             'before': before_val,
                             'after': after_val
                         })
-                
+
                 if changes:
                     resource_data['changes'] = changes
 
             # Add additional details if requested
             if show_details:
                 resource_data['details'] = {
-                    'dependencies': resource.get('dependencies', []),
-                    'tags': resource.get('tags', {}),
+                    'dependencies':
+                    resource.get('dependencies', []),
+                    'tags':
+                    resource.get('tags', {}),
                     'raw': {
                         'before': resource.get('before', {}),
                         'after': resource.get('after', {})
                     },
                     # Add replacement triggers to details if present
-                    'replacement_triggers': resource.get('replacement_triggers', [])
+                    'replacement_triggers':
+                    resource.get('replacement_triggers', [])
                 }
 
             processed_resources.append(resource_data)
-        
+
         return processed_resources
 
     def print_report(self, data: Any, **kwargs) -> None:
@@ -130,7 +138,7 @@ class PlanReporter(BaseReporter, ReporterInterface):
 
         self._print_header("Terraform Plan Analysis")
         self._print_summary(report)
-        
+
         if show_details or show_changes:
             if 'resources' not in report:
                 raise ValueError("Report missing resource details")
@@ -143,17 +151,21 @@ class PlanReporter(BaseReporter, ReporterInterface):
 
     def _print_summary(self, report: Dict) -> None:
         """Format the change summary section."""
-        self._write(f"\n{self._colorize('Total Changes: ' + str(report['total_changes']), 'bold')}\n")
-        
+        self._write(
+            f"\n{self._colorize('Total Changes: ' + str(report['total_changes']), 'bold')}\n"
+        )
+
         # Add change counts by type (do not show 'replace' in summary)
         for action in ['create', 'update', 'delete']:
             count = report['change_breakdown'].get(action, 0)
             self._write(f"{action.title()}: {count}\n")
 
-    def _print_resource_details(self, resources: list, show_changes: bool = False) -> None:
+    def _print_resource_details(self,
+                                resources: list,
+                                show_changes: bool = False) -> None:
         """Format the resource details section."""
         self._write(f"\n{self._colorize('Resources Changes:', 'bold')}\n")
-        
+
         # Define color mapping for actions
         action_colors = {
             'CREATE': 'green',
@@ -161,17 +173,17 @@ class PlanReporter(BaseReporter, ReporterInterface):
             'DELETE': 'red',
             'REPLACE': 'yellow',
         }
-        
+
         for resource in resources:
             action_str = resource['action'].upper()
             # Color the action string based on the action type
-            colored_action = self._colorize(action_str, action_colors.get(action_str, 'bold'))
-            self._write(
-                f"\n{colored_action} {resource['resource_type']}: "
-                f"{resource['identifier']}\n"
-            )
+            colored_action = self._colorize(
+                action_str, action_colors.get(action_str, 'bold'))
+            self._write(f"\n{colored_action} {resource['resource_type']}: "
+                        f"{resource['identifier']}\n")
             # Show replacement triggers if this is a replacement
-            if resource.get('replacement', False) and resource.get('replacement_triggers'):
+            if resource.get('replacement',
+                            False) and resource.get('replacement_triggers'):
                 triggers = ', '.join(resource['replacement_triggers'])
                 self._write(f"  Replacement triggered by: {triggers}\n")
             if show_changes:
@@ -179,28 +191,62 @@ class PlanReporter(BaseReporter, ReporterInterface):
         # Ensure a newline at the end to avoid shell prompt artifacts
         self._write("\n")
 
-    def _print_attribute_changes(self, resource: Dict) -> None:
+    def _format_attribute_changes_difference(self, before_val, after_val,
+                                             show_attribute_difference,
+                                             structure_threshold,
+                                             diff_method) -> str:
+        """Format attribute changes difference for a resource."""
+        default_format_string = f"{before_val} -> {after_val}"
+        if show_attribute_difference == "True" or show_attribute_difference == "true":
+            generate_custom_diff_string = True
+        elif show_attribute_difference == "False" or show_attribute_difference == "false":
+            generate_custom_diff_string = False
+        elif show_attribute_difference == "threshold":
+            generate_custom_diff_string = (
+                isinstance(before_val, (list, dict))
+                and isinstance(after_val, (list, dict))
+                and len(before_val) > structure_threshold
+                and len(after_val) > structure_threshold)
+        else:
+            generate_custom_diff_string = False
+
+        if generate_custom_diff_string:
+            if diff_method == "deepdiff":
+                diff_format_string = DeepDiff(before_val, after_val)
+            else:
+                diff_format_string = diff(before_val,
+                                          after_val,
+                                          syntax='symmetric')
+        else:
+            diff_format_string = default_format_string
+        return diff_format_string
+
+    def _print_attribute_changes(self,
+                                 resource: Dict,
+                                 show_attribute_difference="threshold",
+                                 structure_threshold=3,
+                                 diff_method="deepdiff") -> None:
         """Format attribute changes for a resource."""
         lines = []
         before = resource.get('before', {}) or {}
         after = resource.get('after', {}) or {}
-        
+
         # Get all changed attributes
         all_attrs = set(before.keys()) | set(after.keys())
         skip_attrs = {'id', 'tags_all'}  # Skip internal attributes
-        
+
         # Define color mapping for symbols
         symbol_colors = {
-            '+': 'green',   # create
-            '~': 'blue',    # update
-            '-': 'red',     # delete
-            '-/+': 'yellow' # replace
+            '+': 'green',  # create
+            '~': 'blue',  # update
+            '-': 'red',  # delete
+            '-/+': 'yellow'  # replace
         }
-        
+
         for attr in sorted(all_attrs - skip_attrs):
             before_val = before.get(attr)
             after_val = after.get(attr)
-            
+
             if before_val != after_val:
                 if resource['action'] == 'create':
                     symbol = self._colorize('+', symbol_colors['+'])
@@ -210,15 +256,21 @@ class PlanReporter(BaseReporter, ReporterInterface):
                     lines.append(f"  {symbol} {attr} = {before_val}")
                 elif resource['action'] == 'update':
                     symbol = self._colorize('~', symbol_colors['~'])
-                    lines.append(f"  {symbol} {attr} = {before_val} -> {after_val}")
+                    formatted_difference = self._format_attribute_changes_difference(
+                        before_val, after_val, show_attribute_difference,
+                        structure_threshold, diff_method)
+                    lines.append(f"  {symbol} {attr} = {formatted_difference}")
                 elif resource['action'] == 'replace':
                     symbol = self._colorize('-/+', symbol_colors['-/+'])
-                    lines.append(f"  {symbol} {attr} = {before_val} -> {after_val}")
-        
+                    formatted_difference = self._format_attribute_changes_difference(
+                        before_val, after_val, show_attribute_difference,
+                        structure_threshold, diff_method)
+                    lines.append(f"  {symbol} {attr} = {formatted_difference}")
+
         self._write('\n'.join(lines))
 
     def print_report_markdown(self, data: Any, **kwargs) -> None:
-        """Print the plan analysis report in markdown format.
+        """Print the plan analysis report in Markdown format.
         
         Args:
             data: Plan analysis results
@@ -232,8 +284,7 @@ class PlanReporter(BaseReporter, ReporterInterface):
         processed_resources = self._process_resources(
             report.get('resources', []),
             show_changes=show_changes,
-            show_details=show_details
-        )
+            show_details=show_details)
 
         # Prepare template data
         template_data = {
@@ -251,7 +302,7 @@ class PlanReporter(BaseReporter, ReporterInterface):
         # Load and render template
         template = self.env.get_template('plan_report.md')
         output = template.render(**template_data)
-        
+
         # Write the output
         self._write(output)
 
@@ -270,8 +321,7 @@ class PlanReporter(BaseReporter, ReporterInterface):
         processed_resources = self._process_resources(
             report.get('resources', []),
             show_changes=show_changes,
-            show_details=show_details
-        )
+            show_details=show_details)
 
         # Prepare JSON output structure
         json_output = {
@@ -294,4 +344,4 @@ class PlanReporter(BaseReporter, ReporterInterface):
             json_output['analysis'] = report['analysis']
 
         # Write the JSON output with proper formatting
-        self._write(_json.dumps(json_output, indent=2)) 
+        self._write(_json.dumps(json_output, indent=2))
