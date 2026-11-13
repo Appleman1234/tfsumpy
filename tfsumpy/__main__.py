@@ -1,10 +1,12 @@
+"""Command-line entry point for tfsumpy."""
 import logging
 import argparse
 import warnings
+import sys
+from tfsumpy.plugins import load_plugins
 from .plan.analyzer import PlanAnalyzer
 from .plan.reporter import PlanReporter
 from .context import Context
-from tfsumpy.plugins import load_plugins
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -12,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    """Command-line entry point for tfsumpy."""
     parser = argparse.ArgumentParser(
         description='Analyze Terraform plan files')
     parser.add_argument('plan_path', help='Path to the Terraform plan file')
@@ -126,15 +129,15 @@ def main():
 
     except FileNotFoundError as e:
         logger.error(f"File not found: {e}")
-        exit(1)
+        sys.exit(1)
     except ValueError as e:
         logger.error(f"Invalid input: {e}")
-        exit(1)
-    except Exception as e:
+        sys.exit(1)
+    except Exception as e: # pylint: disable=broad-exception-caught
         logger.error(f"An error occurred: {str(e)}")
         if args.debug:
             logger.exception("Detailed error information:")
-        exit(1)
+        sys.exit(1)
 
 
 if __name__ == '__main__':

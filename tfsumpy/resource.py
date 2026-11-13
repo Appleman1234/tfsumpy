@@ -1,9 +1,10 @@
+"""Resource models and helpers for Terraform plan data."""
 from dataclasses import dataclass, field
 from typing import Dict, Any
 
 
 @dataclass
-class ResourceChange:
+class ResourceChange:  # pylint: disable=too-many-instance-attributes
     """Represents a single Terraform resource change."""
 
     action: str

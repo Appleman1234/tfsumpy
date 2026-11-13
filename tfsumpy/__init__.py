@@ -1,3 +1,4 @@
+"""Terraform plan analysis and reporting package."""
 from .plan.analyzer import PlanAnalyzer
 from .plan.reporter import PlanReporter
 from .resource import ResourceChange

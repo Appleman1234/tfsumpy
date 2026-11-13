@@ -1,3 +1,4 @@
+"""Context and configuration handling for Terraform plan analysis."""
 import json
 import logging
 import os
@@ -6,7 +7,7 @@ from .analyzer import AnalyzerInterface, AnalyzerResult
 from .reporter import ReporterInterface
 
 
-class Context:
+class Context: # pylint: disable=too-many-instance-attributes
     """Application context that manages analyzers and configuration."""
 
     def __init__(self, config_path: Optional[str] = None, debug: bool = False):
@@ -44,7 +45,9 @@ class Context:
 
         if analyzer not in self._analyzers[category]:
             self.logger.debug(
-                f"Registering analyzer {analyzer.__class__.__name__} for category {category}"
+                "Registering analyzer %s for category %s",
+                analyzer.__class__.__name__,
+                category,
             )
             self._analyzers[category].append(analyzer)
 
@@ -75,12 +78,14 @@ class Context:
         for analyzer in analyzers:
             try:
                 self.logger.debug(
-                    f"Running analyzer {analyzer.__class__.__name__}")
+                    "Running analyzer %s", analyzer.__class__.__name__)
                 result = analyzer.analyze(self, **kwargs)
                 results.append(result)
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-exception-caught
                 self.logger.error(
-                    f"Error running analyzer {analyzer.__class__.__name__}: {str(e)}"
+                        "Error running analyzer %s: {%s}",
+                        analyzer.__class__.__name__,
+                        str(e)
                 )
                 if self.debug:
                     self.logger.exception("Detailed error:")
@@ -109,13 +114,15 @@ class Context:
         default_config_path = os.path.join(os.path.dirname(__file__),
                                            'rules_config.json')
         self.logger.debug(
-            f"Loading default config file: {default_config_path}")
+            "Loading default config file: %s", 
+            default_config_path
+            )
 
         try:
-            with open(default_config_path, 'r') as f:
+            with open(default_config_path, 'r', encoding="utf-8") as f:
                 self.config = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            self.logger.error(f"Error loading default config: {str(e)}")
+            self.logger.error("Error loading default config:  {%s}", str(e))
             raise
 
         # Merge external config if provided
@@ -127,10 +134,10 @@ class Context:
 
     def _merge_external_config(self) -> None:
         """Merge external configuration with default configuration"""
-        self.logger.debug(f"Merging external config file: {self.config_path}")
+        self.logger.debug("Merging external config file: %s", self.config_path)
         try:
             assert self.config_path is not None
-            with open(self.config_path, 'r') as f:
+            with open(self.config_path, 'r',encoding="utf-8") as f:
                 external_config = json.load(f)
 
             # Merge sensitive patterns
@@ -140,11 +147,11 @@ class Context:
             self.logger.debug("Successfully merged external config")
         except FileNotFoundError:
             self.logger.error(
-                f"External config file not found: {self.config_path}")
+                "External config file not found: %s",self.config_path)
             raise
         except json.JSONDecodeError as e:
             self.logger.error(
-                f"Error parsing external JSON config file: {str(e)}")
+                    "Error parsing external JSON config file: {%s}", str(e))
             raise
 
     def _process_config(self) -> None:
@@ -155,7 +162,7 @@ class Context:
         ]
 
         self.logger.debug(
-            f"Loaded {len(self.sensitive_patterns)} sensitive patterns")
+            "Loaded %i sensitive patterns", len(self.sensitive_patterns))
 
     def register_reporter(self, reporter: ReporterInterface) -> None:
         """Register a reporter in its category.
@@ -172,7 +179,9 @@ class Context:
 
         if reporter not in self._reporters[category]:
             self.logger.debug(
-                f"Registering reporter {reporter.__class__.__name__} for category {category}"
+                "Registering reporter %s for category %s",
+                reporter.__class__.__name__,
+                category,
             )
             self._reporters[category].append(reporter)
 
@@ -193,11 +202,13 @@ class Context:
         for reporter in reporters:
             try:
                 self.logger.debug(
-                    f"Running reporter {reporter.__class__.__name__}")
+                    "Running reporter %s ", reporter.__class__.__name__)
                 reporter.print_report(data, **kwargs)
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-exception-caught
                 self.logger.error(
-                    f"Error running reporter {reporter.__class__.__name__}: {str(e)}"
+                        "Error running reporter %s: {%s}", 
+                        reporter.__class__.__name__,
+                        str(e)
                 )
                 if self.debug:
                     self.logger.exception("Detailed error:")

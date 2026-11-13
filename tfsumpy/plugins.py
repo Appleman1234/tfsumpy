@@ -1,3 +1,4 @@
+"""Plugin discovery and loading utilities."""
 import importlib.util
 import glob
 import os

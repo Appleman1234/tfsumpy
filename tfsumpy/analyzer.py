@@ -1,11 +1,12 @@
+"""Core analysis utilities for Terraform plan data."""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, TYPE_CHECKING
+from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from .context import Context
-from dataclasses import dataclass
 
 
 @dataclass
@@ -22,9 +23,7 @@ class AnalyzerInterface(ABC):
     @abstractmethod
     def category(self) -> str:
         """Return the analyzer category"""
-        pass
 
     @abstractmethod
     def analyze(self, context: 'Context', **kwargs) -> AnalyzerResult:
         """Perform analysis and return results"""
-        pass
