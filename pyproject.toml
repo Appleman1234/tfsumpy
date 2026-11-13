@@ -1,6 +1,6 @@
 [project]
 name = "tfsumpy"
-version = "0.2.1+catalyst.1"
+version = "0.2.1+structureddiff.1"
 description = "A Python tool for Terraform state summary"
 authors = [
     { name = "Rafael H de Carvalho", email = "rafaelherik@gmail.com" },
