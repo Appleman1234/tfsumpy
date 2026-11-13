@@ -62,6 +62,10 @@ dev = [
 [tool.poetry.scripts]
 tfsumpy = "tfsumpy.__main__:main"
 
+[[tool.mypy.overrides]]
+module = "deepdiff.*,jsondiff.*"
+ignore_missing_imports = true
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api" 
