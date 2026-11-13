@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Dict, Any
 
+
 @dataclass
 class ResourceChange:
     """Represents a single Terraform resource change."""

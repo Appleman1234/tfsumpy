@@ -9,9 +9,10 @@ if TYPE_CHECKING:
 from ..resource import ResourceChange
 from ..analyzer import AnalyzerInterface, AnalyzerResult
 
+
 class PlanAnalyzer(AnalyzerInterface):
     """Analyzes Terraform plan files and generates structured reports."""
-    
+
     def __init__(self, context):
         """Initialize the plan analyzer.
         
@@ -39,19 +40,19 @@ class PlanAnalyzer(AnalyzerInterface):
         plan_path = kwargs.get('plan_path')
         if not plan_path:
             raise ValueError("plan_path is required")
-            
+
         self.logger.debug(f"Starting plan analysis for {plan_path}")
-        
+
         try:
             # Read and parse plan file
             with open(plan_path, 'r') as f:
                 self.logger.debug("Reading plan file")
                 plan_content = f.read()
-            
+
             # Parse the plan content
             self.logger.debug("Parsing plan content")
             changes = self._parse_plan(plan_content)
-            
+
             # Generate summary statistics
             change_counts = {'create': 0, 'update': 0, 'delete': 0}
             for change in changes:
@@ -62,22 +63,20 @@ class PlanAnalyzer(AnalyzerInterface):
                 elif change.action in change_counts:
                     change_counts[change.action] += 1
                 else:
-                    change_counts[change.action] = 1  # fallback for unexpected actions
-            
+                    change_counts[
+                        change.action] = 1  # fallback for unexpected actions
+
             self.logger.info(f"Found {len(changes)} resource changes")
             self.logger.debug(f"Change breakdown: {change_counts}")
-            
+
             result_data = {
                 'total_changes': len(changes),
                 'change_breakdown': change_counts,
                 'resources': [c.__dict__ for c in changes]
             }
-            
-            return AnalyzerResult(
-                category=self.category,
-                data=result_data
-            )
-            
+
+            return AnalyzerResult(category=self.category, data=result_data)
+
         except json.JSONDecodeError as e:
             self.logger.error(f"Failed to parse plan JSON: {str(e)}")
             raise ValueError("Invalid plan file format")
@@ -97,43 +96,47 @@ class PlanAnalyzer(AnalyzerInterface):
         self.logger.debug("Parsing plan JSON")
         plan = json.loads(plan_content)
         changes = []
-        
+
         # Get resource changes from plan
         resource_changes = plan.get('resource_changes', [])
-        self.logger.debug(f"Found {len(resource_changes)} resource changes in plan")
-        
+        self.logger.debug(
+            f"Found {len(resource_changes)} resource changes in plan")
+
         for change in resource_changes:
             # Extract change action
             actions = change.get('change', {}).get('actions', ['no-op'])
             action = actions[0] if actions else 'no-op'
             if action != 'no-op':
-                self.logger.debug(f"Processing {actions} change for {change.get('address', '')}")
-                
+                self.logger.debug(
+                    f"Processing {actions} change for {change.get('address', '')}"
+                )
+
                 # Extract module information
                 address = change.get('address', '')
                 module_name = self._extract_module_name(address)
-                
+
                 # Get change details
                 change_details = change.get('change', {})
-                
+
                 # Detect replacement (Terraform: actions == ["delete", "create"])
                 is_replacement = actions == ["delete", "create"]
-                replacement_triggers = change_details.get('replacement_triggered_by', []) if is_replacement else []
+                replacement_triggers = change_details.get(
+                    'replacement_triggered_by', []) if is_replacement else []
                 # For reporting, treat as 'replace' action
                 action_display = 'replace' if is_replacement else action
-                
-                changes.append(ResourceChange(
-                    action=action_display,
-                    resource_type=change.get('type', ''),
-                    identifier=self._sanitize_text(address),
-                    changes=change_details.get('before_sensitive', {}),
-                    module=module_name,
-                    before=change_details.get('before', {}),
-                    after=change_details.get('after', {}),
-                    replacement=is_replacement,
-                    replacement_triggers=replacement_triggers
-                ))
-        
+
+                changes.append(
+                    ResourceChange(action=action_display,
+                                   resource_type=change.get('type', ''),
+                                   identifier=self._sanitize_text(address),
+                                   changes=change_details.get(
+                                       'before_sensitive', {}),
+                                   module=module_name,
+                                   before=change_details.get('before', {}),
+                                   after=change_details.get('after', {}),
+                                   replacement=is_replacement,
+                                   replacement_triggers=replacement_triggers))
+
         return changes
 
     def _extract_module_name(self, address: str) -> str:
@@ -167,4 +170,4 @@ class PlanAnalyzer(AnalyzerInterface):
         sanitized = text
         for pattern, replacement in self.context.sensitive_patterns:
             sanitized = pattern.sub(replacement, sanitized)
-        return sanitized 
+        return sanitized

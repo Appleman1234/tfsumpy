@@ -2,6 +2,7 @@ import importlib.util
 import glob
 import os
 
+
 def load_plugins(context, plugin_dir="plugins"):
     """Load and register plugins from the specified directory."""
     if not os.path.isdir(plugin_dir):
@@ -11,4 +12,4 @@ def load_plugins(context, plugin_dir="plugins"):
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         if hasattr(mod, "register"):
-            mod.register(context) 
+            mod.register(context)
